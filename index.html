@@ -139,6 +139,11 @@ body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:60px}
 .gauge-track{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
 .gauge-fill{height:100%;border-radius:3px;transition:width .5s,background .5s}
 
+/* ─── TOGGLE RAV ─── */
+.toggle-rav-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:11px;font-family:var(--mono);padding:6px 11px;border-radius:var(--r-sm);cursor:pointer;transition:color .15s,border-color .15s;white-space:nowrap}
+.toggle-rav-btn:hover{color:var(--text);border-color:var(--border2)}
+.rav-hidden{filter:blur(6px);pointer-events:none;user-select:none}
+
 /* ─── YEAR DELETE ─── */
 .year-card{position:relative}
 .year-del-btn{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;background:var(--red-dim);border:1px solid rgba(248,113,113,0.2);color:var(--red);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s;line-height:1}
@@ -241,7 +246,10 @@ body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:60px}
       <div class="t1">Dashboard</div>
       <div class="t2">Choisir une année</div>
     </div>
-    <button class="back-btn" onclick="goTo('welcome')">← Accueil</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="toggle-rav-btn" id="toggle-rav-year" onclick="toggleRav('year')">🙈 Afficher</button>
+      <button class="back-btn" onclick="goTo('welcome')">← Accueil</button>
+    </div>
   </div>
   <div id="install-banner">
     <p>Installer Fin'Ko sur cet appareil ?</p>
@@ -257,9 +265,12 @@ body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:60px}
 <div id="screen-month" class="screen">
   <div class="topbar">
     <button class="back-btn" onclick="goTo('year')">← Retour</button>
-    <div class="topbar-left" style="text-align:right">
-      <div class="t1" id="month-screen-title">2025</div>
-      <div class="t2">Choisir un mois</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="toggle-rav-btn" id="toggle-rav-month" onclick="toggleRav('month')">🙈 Afficher</button>
+      <div class="topbar-left" style="text-align:right">
+        <div class="t1" id="month-screen-title">2025</div>
+        <div class="t2">Choisir un mois</div>
+      </div>
     </div>
   </div>
   <div class="month-grid" id="month-grid"></div>
@@ -342,6 +353,7 @@ const PIN_KEY = 'finko_pin';
 let currentYear = new Date().getFullYear();
 let currentMonth = 0;
 let collapsed = {};
+let ravVisible = {year: false, month: false};
 
 // État PIN
 let pinMode = 'verify'; // 'verify' | 'setup' | 'setup_confirm' | 'change_old' | 'change_new' | 'change_confirm' | 'delete_year'
@@ -372,7 +384,25 @@ function addYear(y) {
 }
 function getMonth(y, m) {
   const d = loadData();
-  if (!d[y]) d[y] = {}; if (!d[y][m]) d[y][m] = {revenus:[],epargne:[],fixes:[],variables:[]};
+  if (!d[y]) d[y] = {};
+  if (!d[y][m]) {
+    d[y][m] = {
+      revenus: [],
+      epargne: [
+        {label:'Livret A', amount:850},
+        {label:'PEA',      amount:150},
+      ],
+      fixes: [
+        {label:'Loyer',                 amount:700},
+        {label:'Transport',             amount:0},
+        {label:'Nourriture et plaisir', amount:300},
+        {label:'Famille',               amount:160},
+        {label:'Facture de téléphone',  amount:11},
+      ],
+      variables: []
+    };
+    saveData(d);
+  }
   return d[y][m];
 }
 function setMonth(y, m, data) {
@@ -549,9 +579,15 @@ function goTo(screen) {
   if (screen === 'detail') renderDetail();
 }
 
-/* ════════════════════════════════════════
-   ANNÉES
-════════════════════════════════════════ */
+function toggleRav(screen) {
+  ravVisible[screen] = !ravVisible[screen];
+  const btn = document.getElementById('toggle-rav-' + screen);
+  btn.textContent = ravVisible[screen] ? '👁 Masquer' : '🙈 Afficher';
+  if (screen === 'year')  renderYears();
+  if (screen === 'month') renderMonths();
+}
+
+
 function renderYears() {
   const years = getYears();
   const cards = years.map(y => {
@@ -559,7 +595,7 @@ function renderYears() {
     const d = loadData()[y];
     const has = d && Object.values(d).some(m => m.revenus?.length||m.fixes?.length||m.variables?.length||m.epargne?.length);
     const chip = has
-      ? `<span class="chip ${annual>=0?'chip-g':'chip-r'}">${annual>=0?'+':''}${fmt(annual)}</span>`
+      ? `<span class="chip ${annual>=0?'chip-g':'chip-r'}${ravVisible.year?'':' rav-hidden'}">${annual>=0?'+':''}${fmt(annual)}</span>`
       : `<span class="chip chip-m">Aucune donnée</span>`;
     return `<div class="year-card" onclick="selectYear(${y})">
       <button class="year-del-btn" onclick="event.stopPropagation();requestDeleteYear(${y})" title="Supprimer ${y}">✕</button>
@@ -596,7 +632,7 @@ function renderMonths() {
     const mo = getMonth(currentYear, m);
     const has = mo.revenus.length||mo.fixes.length||mo.variables.length||mo.epargne.length;
     const color = s.rav >= 0 ? 'var(--green)' : 'var(--red)';
-    const rav = has ? `<div class="month-rav" style="color:${color}">${s.rav>=0?'+':''}${fmt(s.rav)}</div>`
+    const rav = has ? `<div class="month-rav${ravVisible.month?'':' rav-hidden'}" style="color:${color}">${s.rav>=0?'+':''}${fmt(s.rav)}</div>`
                     : `<div class="month-rav" style="color:var(--muted)">—</div>`;
     return `<div class="month-card" onclick="selectMonth(${m})"><div class="month-name">${mn}</div>${rav}</div>`;
   }).join('');
@@ -770,6 +806,36 @@ if('serviceWorker'in navigator){
    INIT
 ════════════════════════════════════════ */
 if(!loadData().__years__) saveYears([new Date().getFullYear()]);
+
+// Migration : Livret A → 850 €, Transport → 0, ajout Facture de téléphone si absente
+(function migrateData() {
+  const d = loadData();
+  let changed = false;
+  Object.keys(d).forEach(y => {
+    if (y === '__years__') return;
+    Object.keys(d[y]).forEach(m => {
+      const mo = d[y][m];
+
+      // Livret A → 850
+      if (mo.epargne) mo.epargne.forEach(item => {
+        if (item.label === 'Livret A' && item.amount !== 850) { item.amount = 850; changed = true; }
+      });
+
+      // Transport → 0
+      if (mo.fixes) mo.fixes.forEach(item => {
+        if (item.label === 'Transport' && item.amount !== 0) { item.amount = 0; changed = true; }
+      });
+
+      // Facture de téléphone → ajouter si absente
+      if (mo.fixes) {
+        const hasTel = mo.fixes.some(item => item.label === 'Facture de téléphone');
+        if (!hasTel) { mo.fixes.push({label:'Facture de téléphone', amount:11}); changed = true; }
+      }
+    });
+  });
+  if (changed) saveData(d);
+})();
+
 initPin();
 </script>
 </body>
