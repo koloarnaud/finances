@@ -139,6 +139,12 @@ body{max-width:520px;margin:0 auto;min-height:100vh;padding-bottom:60px}
 .gauge-track{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
 .gauge-fill{height:100%;border-radius:3px;transition:width .5s,background .5s}
 
+/* ─── YEAR DELETE ─── */
+.year-card{position:relative}
+.year-del-btn{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;background:var(--red-dim);border:1px solid rgba(248,113,113,0.2);color:var(--red);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s,background .15s;line-height:1}
+.year-card:hover .year-del-btn{opacity:1}
+.year-del-btn:hover{background:rgba(248,113,113,0.25)}
+
 /* ─── CHIPS ─── */
 .chip{display:inline-block;font-size:11px;font-family:var(--mono);padding:3px 8px;border-radius:20px;margin-top:5px}
 .chip-g{background:var(--green-dim);color:var(--green)}
@@ -337,9 +343,11 @@ let currentMonth = 0;
 let collapsed = {};
 
 // État PIN
-let pinMode = 'verify'; // 'verify' | 'setup' | 'change_old' | 'change_new' | 'change_confirm'
+let pinMode = 'verify'; // 'verify' | 'setup' | 'setup_confirm' | 'change_old' | 'change_new' | 'change_confirm' | 'delete_year'
 let pinBuffer = '';
 let pinNew = '';
+let yearToDelete = null;
+let deleteAttempts = 0;
 
 /* ════════════════════════════════════════
    STOCKAGE
@@ -474,6 +482,34 @@ function handlePin() {
       pinMode = 'change_new';
       document.getElementById('pin-sub').textContent = 'Nouveau code PIN';
     }
+
+  } else if (pinMode === 'delete_year') {
+    if (pinBuffer === stored) {
+      const y = yearToDelete;
+      const d = loadData();
+      delete d[y];
+      const yrs = getYears().filter(x => x !== y);
+      d.__years__ = yrs.length ? yrs : [new Date().getFullYear()];
+      saveData(d);
+      yearToDelete = null;
+      deleteAttempts = 0;
+      showToast(`${y} supprimée ✓`);
+      goTo('year');
+    } else {
+      deleteAttempts++;
+      if (deleteAttempts >= 2) {
+        deleteAttempts = 0;
+        yearToDelete = null;
+        shakeDots();
+        setTimeout(() => {
+          showToast('Suppression annulée');
+          goTo('year');
+        }, 650);
+      } else {
+        document.getElementById('pin-err').textContent = 'Code incorrect — encore 1 essai';
+        shakeDots();
+      }
+    }
   }
 
   // Avancer l'état setup
@@ -490,9 +526,19 @@ function startChangePin() {
   goTo('pin');
 }
 
-/* ════════════════════════════════════════
-   NAVIGATION
-════════════════════════════════════════ */
+function requestDeleteYear(y) {
+  yearToDelete = y;
+  deleteAttempts = 0;
+  pinBuffer = ''; pinNew = '';
+  pinMode = 'delete_year';
+  document.getElementById('pin-title').textContent = `Supprimer ${y}`;
+  document.getElementById('pin-sub').textContent = 'Confirmez avec votre code PIN';
+  document.getElementById('pin-err').textContent = '';
+  updateDots();
+  goTo('pin');
+}
+
+
 function goTo(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
@@ -514,7 +560,9 @@ function renderYears() {
     const chip = has
       ? `<span class="chip ${annual>=0?'chip-g':'chip-r'}">${annual>=0?'+':''}${fmt(annual)}</span>`
       : `<span class="chip chip-m">Aucune donnée</span>`;
-    return `<div class="year-card" onclick="selectYear(${y})"><div class="year-num">${y}</div>${chip}</div>`;
+    return `<div class="year-card" onclick="selectYear(${y})">
+      <button class="year-del-btn" onclick="event.stopPropagation();requestDeleteYear(${y})" title="Supprimer ${y}">✕</button>
+      <div class="year-num">${y}</div>${chip}</div>`;
   }).join('');
   const add = `<div class="year-add-card" onclick="promptAddYear()">
     <div class="year-add-icon">+</div>
