@@ -389,8 +389,8 @@ function getMonth(y, m) {
     d[y][m] = {
       revenus: [],
       epargne: [
-        {label:'Livret A', amount:850},
-        {label:'PEA',      amount:150},
+        {label:'Livret A', amount:800},
+        {label:'PEA',      amount:200},
       ],
       fixes: [
         {label:'Loyer',                 amount:700},
@@ -811,7 +811,7 @@ if('serviceWorker'in navigator){
 ════════════════════════════════════════ */
 if(!loadData().__years__) saveYears([new Date().getFullYear()]);
 
-// Migration : Livret A → 850 €, Transport → 0, ajout Facture de téléphone si absente
+// Migration : Livret A → 800 €, PEA → 200 €, Transport → 0, ajout Facture de téléphone si absente
 (function migrateData() {
   const d = loadData();
   let changed = false;
@@ -820,9 +820,11 @@ if(!loadData().__years__) saveYears([new Date().getFullYear()]);
     Object.keys(d[y]).forEach(m => {
       const mo = d[y][m];
 
-      // Livret A → 850
+      // Livret A → 800, PEA → 200
       if (mo.epargne) mo.epargne.forEach(item => {
-        if (item.label === 'Livret A' && item.amount !== 850) { item.amount = 850; changed = true; }
+        if (item.label === 'Livret A' && item.amount !== 800) { item.amount = 800; changed = true; }
+        if (item.label === 'PEA' && item.amount !== 200) { item.amount = 200; changed = true; }
+        if (item.label === 'Bourse') { item.label = 'PEA'; item.amount = 200; changed = true; }
       });
 
       // Transport → 0
